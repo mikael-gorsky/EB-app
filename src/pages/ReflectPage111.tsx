@@ -130,24 +130,6 @@ const ErrorMessage = styled.div`
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 `;
 
-const AuthButton = styled.button`
-  background-color: ${({ theme }) => theme.colors.primary};
-  color: white;
-  border: none;
-  border-radius: 4px;
-  padding: 10px 15px;
-  margin: 10px 0;
-  cursor: pointer;
-  font-weight: 500;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  transition: all 0.2s ease;
-  
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-  }
-`;
-
 const LoadingContainer = styled.div`
   display: flex;
   flex-direction: column;
@@ -234,57 +216,56 @@ const ReflectPage111: React.FC<PageProps> = ({
   const handleAnalyze = async (type: AnalysisType) => {
     if (!message && attachments.length === 0) return;
     
-    // Check if user is authenticated
-    if (!user) {
-      setError('Please sign in to analyze messages');
-      return;
-    }
-    
     setAnalysisType(type);
     setIsAnalyzing(true);
     setError(null);
     setAnalysis(null); // Reset previous analysis
     
     try {
-      // Save the message first
-      const { data: messageData, error: messageError } = await supabase
-        .from('messages')
-        .insert({
-          content: message,
-          user_id: user.id,
-          message_type: type
-        })
-        .select()
-        .single();
+      // Save the message to the database if the user is logged in
+      let messageId = null;
       
-      if (messageError) {
-        console.error('Error saving message:', messageError);
-        throw new Error(`Failed to save message: ${messageError.message}`);
-      }
-      
-      if (!messageData) {
-        throw new Error('No message data returned from database');
+      if (user) {
+        // Only save to database if user is logged in
+        const { data: messageData, error: messageError } = await supabase
+          .from('messages')
+          .insert({
+            content: message,
+            user_id: user.id,
+            message_type: type
+          })
+          .select()
+          .single();
+        
+        if (messageError) {
+          console.error('Error saving message:', messageError);
+          // Continue without saving - don't throw error
+        } else if (messageData) {
+          messageId = messageData.id;
+        }
       }
       
       // Call the analyze function from our modular AI service
       const analysisResult = await analyzeText(message, type);
       
-      // Extract components from the result for database storage
-      const { metrics, analysis: explanations, suggestions } = analysisResult;
-      
-      // Save the analysis result
-      const { error: analysisError } = await supabase
-        .from('analysis_results')
-        .insert({
-          message_id: messageData.id,
-          metrics: metrics || {},
-          explanations: explanations || {},
-          suggestions: suggestions || []
-        });
-      
-      if (analysisError) {
-        console.error('Error saving analysis result:', analysisError);
-        throw new Error(`Failed to save analysis: ${analysisError.message}`);
+      // If user is logged in and we have a message ID, save the analysis result
+      if (user && messageId) {
+        const { metrics, analysis: explanations, suggestions } = analysisResult;
+        
+        // Save the analysis result
+        const { error: analysisError } = await supabase
+          .from('analysis_results')
+          .insert({
+            message_id: messageId,
+            metrics: metrics || {},
+            explanations: explanations || {},
+            suggestions: suggestions || []
+          });
+        
+        if (analysisError) {
+          console.error('Error saving analysis result:', analysisError);
+          // Continue without saving - don't throw error
+        }
       }
       
       // Update the UI
@@ -297,11 +278,7 @@ const ReflectPage111: React.FC<PageProps> = ({
     }
   };
 
-  const handleSignIn = () => {
-    navigate('/auth');
-  };
-
-  const isButtonDisabled = isAnalyzing || (!message && attachments.length === 0) || !user;
+  const isButtonDisabled = isAnalyzing || (!message && attachments.length === 0);
 
   // Render different content based on the analysis state
   const renderAnalysisContent = () => {
@@ -379,13 +356,6 @@ const ReflectPage111: React.FC<PageProps> = ({
         {stableIsDesktop && <PageTitle>REFLECT</PageTitle>}
         
         {error && <ErrorMessage>{error}</ErrorMessage>}
-        
-        {!user && !authLoading && (
-          <div style={{ textAlign: 'center', margin: '20px 0' }}>
-            <p>Please sign in to use the analysis features</p>
-            <AuthButton onClick={handleSignIn}>Sign In / Create Account</AuthButton>
-          </div>
-        )}
         
         {renderAnalysisContent()}
         
