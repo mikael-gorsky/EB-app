@@ -3,16 +3,13 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import Navigation from '../components/common/Navigation';
 import MessageInput from '../components/reflect/MessageInput';
-import ReflectionOutput from '../components/reflect/ReflectionOutput';
+import RadialGauge from '../components/common/RadialGauge';
 import { analyzeText, AnalysisType, AnalysisResult } from '../services/ai';
 import { supabase } from '../utils/supabaseClient';
 import { PageProps } from '../layouts/AppLayout';
 import { useNavigate } from 'react-router-dom';
 
-// Set the AI provider once at application startup
-// This can be called elsewhere like in your main app initialization
-// import { setAIProvider } from '../services/ai';
-// setAIProvider('openai', { model: 'gpt-4.1-mini' });
+console.log('======= UPDATED REFLECT PAGE LOADED =======');
 
 const PageContainer = styled.div`
   min-height: 100vh;
@@ -29,11 +26,11 @@ const ContentArea = styled.div<{ isDesktop: boolean }>`
   flex-direction: column;
   
   ${props => props.isDesktop && `
-    max-width: 800px;
+    max-width: 1200px;
     margin: 0 auto;
     background-color: white;
     border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   `}
 `;
 
@@ -65,10 +62,19 @@ const AnalysisButton = styled.button<{ active: boolean }>`
   text-transform: uppercase;
   min-width: 80px;
   cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
   
   &:disabled {
     opacity: 0.7;
     cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
   }
 `;
 
@@ -87,6 +93,7 @@ const ErrorMessage = styled.div`
   margin: 10px 0;
   border-radius: 4px;
   text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 `;
 
 const AuthButton = styled.button`
@@ -98,7 +105,237 @@ const AuthButton = styled.button`
   margin: 10px 0;
   cursor: pointer;
   font-weight: 500;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  }
 `;
+
+// New styled components for analysis output
+const AnalysisPanel = styled.div`
+  background-color: white;
+  border-radius: 10px;
+  padding: 20px;
+  margin: 10px 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  animation: fadeIn 0.4s ease-out;
+`;
+
+const AnalysisHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+`;
+
+const AnalysisTitle = styled.h2`
+  font-size: 1.3rem;
+  color: ${({ theme }) => theme.colors.primary};
+  margin: 0;
+`;
+
+const GaugesContainer = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
+`;
+
+const DetailSection = styled.div`
+  margin-bottom: 15px;
+`;
+
+const DetailHeader = styled.div<{ expanded: boolean }>`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background-color: ${props => props.expanded ? '#f5f5f5' : 'white'};
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  
+  &:hover {
+    background-color: #f5f5f5;
+  }
+`;
+
+const DetailTitle = styled.h3`
+  font-size: 1.1rem;
+  margin: 0;
+  color: #333;
+`;
+
+const DetailContent = styled.div`
+  padding: 15px;
+  background-color: #f9f9f9;
+  border-radius: 0 0 6px 6px;
+  margin-top: 2px;
+  
+  @keyframes expandDown {
+    from { opacity: 0; max-height: 0; }
+    to { opacity: 1; max-height: 500px; }
+  }
+  
+  animation: expandDown 0.3s ease-out;
+  overflow: hidden;
+`;
+
+const LoadingContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+`;
+
+const LoadingSpinner = styled.div`
+  width: 50px;
+  height: 50px;
+  border: 5px solid #f3f3f3;
+  border-top: 5px solid ${({ theme }) => theme.colors.primary};
+  border-radius: 50%;
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  
+  animation: spin 1s linear infinite;
+`;
+
+const LoadingText = styled.p`
+  margin-top: 15px;
+  color: #666;
+  font-size: 1rem;
+`;
+
+interface ExpandableSectionProps {
+  title: string;
+  children: React.ReactNode;
+}
+
+const ExpandableSection: React.FC<ExpandableSectionProps> = ({ title, children }) => {
+  const [expanded, setExpanded] = useState(false);
+  
+  return (
+    <DetailSection>
+      <DetailHeader 
+        expanded={expanded}
+        onClick={() => setExpanded(!expanded)}
+      >
+        <DetailTitle>{title}</DetailTitle>
+        <span>{expanded ? '▲' : '▼'}</span>
+      </DetailHeader>
+      
+      {expanded && (
+        <DetailContent>
+          {children}
+        </DetailContent>
+      )}
+    </DetailSection>
+  );
+};
+
+const getMetricKeys = (type: AnalysisType) => {
+  switch(type) {
+    case 'style':
+      return ['clarity', 'conciseness', 'formality', 'engagement', 'complexity'];
+    case 'impact':
+      return ['empathy', 'authority', 'persuasiveness', 'approachability', 'confidence'];
+    case 'result':
+      return ['effectiveness', 'actionability', 'memorability', 'influence', 'audience_fit'];
+    default:
+      return [];
+  }
+};
+
+const AnalysisOutput: React.FC<{
+  type: AnalysisType;
+  data: AnalysisResult | null;
+  isLoading: boolean;
+}> = ({ type, data, isLoading }) => {
+  if (isLoading) {
+    return (
+      <LoadingContainer>
+        <LoadingSpinner />
+        <LoadingText>Analyzing your message...</LoadingText>
+      </LoadingContainer>
+    );
+  }
+  
+  if (!data) {
+    return null;
+  }
+  
+  const metricKeys = getMetricKeys(type);
+  const { metrics, analysis = {}, summary = '', suggestions = [] } = data;
+  
+  return (
+    <AnalysisPanel>
+      <AnalysisHeader>
+        <AnalysisTitle>{type.charAt(0).toUpperCase() + type.slice(1)} Analysis</AnalysisTitle>
+      </AnalysisHeader>
+      
+      <GaugesContainer>
+        {metricKeys.map(key => (
+          <RadialGauge
+            key={key}
+            value={metrics[key] || 0}
+            label={key.replace('_', ' ')}
+            animate={true}
+          />
+        ))}
+      </GaugesContainer>
+      
+      {summary && (
+        <ExpandableSection title="Summary">
+          <p>{summary}</p>
+        </ExpandableSection>
+      )}
+      
+      <ExpandableSection title="Detailed Analysis">
+        {metricKeys.map(key => (
+          analysis[key] && (
+            <div key={key} style={{ marginBottom: '15px' }}>
+              <h4 style={{ 
+                margin: '0 0 5px 0', 
+                color: '#333', 
+                fontSize: '1rem',
+                textTransform: 'capitalize'
+              }}>
+                {key.replace('_', ' ')}
+              </h4>
+              <p style={{ margin: 0, color: '#555' }}>{analysis[key]}</p>
+            </div>
+          )
+        ))}
+      </ExpandableSection>
+      
+      {suggestions.length > 0 && (
+        <ExpandableSection title="Suggestions for Improvement">
+          <ul style={{ margin: '10px 0', paddingLeft: '20px' }}>
+            {suggestions.map((suggestion, index) => (
+              <li key={index} style={{ margin: '5px 0' }}>{suggestion}</li>
+            ))}
+          </ul>
+        </ExpandableSection>
+      )}
+    </AnalysisPanel>
+  );
+};
 
 const ReflectPage111: React.FC<PageProps> = ({ 
   isDesktop = false,
@@ -206,6 +443,11 @@ const ReflectPage111: React.FC<PageProps> = ({
 
   return (
     <PageContainer>
+      {/* Add this test div here to confirm the component is loaded */}
+      <div style={{ background: 'red', padding: '20px', color: 'white', fontWeight: 'bold', textAlign: 'center' }}>
+        UPDATED COMPONENT LOADED - TEST INDICATOR
+      </div>
+      
       {!isDesktop && <Navigation toggleMenu={toggleMenu} />}
       
       <ContentArea isDesktop={isDesktop}>
@@ -220,9 +462,9 @@ const ReflectPage111: React.FC<PageProps> = ({
           </div>
         )}
         
-        <ReflectionOutput 
-          analysisType={analysisType}
-          analysis={analysis}
+        <AnalysisOutput 
+          type={analysisType}
+          data={analysis}
           isLoading={isAnalyzing}
         />
         
