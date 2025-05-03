@@ -1,7 +1,7 @@
 {
   "name": "emotibot-new",
   "version": "0.3.3",
-  "homepage": "https://mikael-gorsky.github.io/EmotiBot",
+  "homepage": "https://mikael-gorsky.github.io/EB-app",
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
     "@testing-library/jest-dom": "^5.16.5",
