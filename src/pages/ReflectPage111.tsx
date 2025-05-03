@@ -1,5 +1,5 @@
 // src/pages/ReflectPage111.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import styled from 'styled-components';
 import Navigation from '../components/common/Navigation';
 import MessageInput from '../components/reflect/MessageInput';
@@ -8,8 +8,7 @@ import { analyzeText, AnalysisType, AnalysisResult } from '../services/ai';
 import { supabase } from '../utils/supabaseClient';
 import { PageProps } from '../layouts/AppLayout';
 import { useNavigate } from 'react-router-dom';
-
-console.log('======= UPDATED REFLECT PAGE LOADED =======');
+import { AuthContext } from '../App';
 
 const PageContainer = styled.div`
   min-height: 100vh;
@@ -31,14 +30,49 @@ const ContentArea = styled.div<{ isDesktop: boolean }>`
     background-color: white;
     border-radius: 10px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    padding: 30px;
   `}
 `;
 
-const DesktopHeader = styled.h1`
-  color: ${({ theme }) => theme.colors.primary};
-  margin-top: 0;
+const PageTitle = styled.h1`
+  color: #333;
+  font-size: 2rem;
+  margin-bottom: 30px;
+  text-transform: uppercase;
+`;
+
+const GaugesContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  margin: 20px 0;
+`;
+
+const GaugeItem = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   margin-bottom: 20px;
-  font-size: 1.5rem;
+  width: 170px;
+`;
+
+const GaugeLabel = styled.div`
+  margin-top: 10px;
+  font-size: 1rem;
+  color: #333;
+  text-transform: capitalize;
+`;
+
+const AnalysisTextContainer = styled.div`
+  flex: 1;
+  background-color: #f9f9f9;
+  border-radius: 10px;
+  padding: 20px;
+  margin: 20px 0;
+`;
+
+const InputContainer = styled.div`
+  margin-top: 20px;
 `;
 
 const ButtonsContainer = styled.div`
@@ -114,85 +148,6 @@ const AuthButton = styled.button`
   }
 `;
 
-// New styled components for analysis output
-const AnalysisPanel = styled.div`
-  background-color: white;
-  border-radius: 10px;
-  padding: 20px;
-  margin: 10px 0;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  transition: all 0.3s ease;
-  
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-  
-  animation: fadeIn 0.4s ease-out;
-`;
-
-const AnalysisHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
-  border-bottom: 1px solid #eee;
-  padding-bottom: 10px;
-`;
-
-const AnalysisTitle = styled.h2`
-  font-size: 1.3rem;
-  color: ${({ theme }) => theme.colors.primary};
-  margin: 0;
-`;
-
-const GaugesContainer = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 20px;
-  margin-bottom: 20px;
-`;
-
-const DetailSection = styled.div`
-  margin-bottom: 15px;
-`;
-
-const DetailHeader = styled.div<{ expanded: boolean }>`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px;
-  background-color: ${props => props.expanded ? '#f5f5f5' : 'white'};
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  
-  &:hover {
-    background-color: #f5f5f5;
-  }
-`;
-
-const DetailTitle = styled.h3`
-  font-size: 1.1rem;
-  margin: 0;
-  color: #333;
-`;
-
-const DetailContent = styled.div`
-  padding: 15px;
-  background-color: #f9f9f9;
-  border-radius: 0 0 6px 6px;
-  margin-top: 2px;
-  
-  @keyframes expandDown {
-    from { opacity: 0; max-height: 0; }
-    to { opacity: 1; max-height: 500px; }
-  }
-  
-  animation: expandDown 0.3s ease-out;
-  overflow: hidden;
-`;
-
 const LoadingContainer = styled.div`
   display: flex;
   flex-direction: column;
@@ -222,121 +177,6 @@ const LoadingText = styled.p`
   font-size: 1rem;
 `;
 
-interface ExpandableSectionProps {
-  title: string;
-  children: React.ReactNode;
-}
-
-const ExpandableSection: React.FC<ExpandableSectionProps> = ({ title, children }) => {
-  const [expanded, setExpanded] = useState(false);
-  
-  return (
-    <DetailSection>
-      <DetailHeader 
-        expanded={expanded}
-        onClick={() => setExpanded(!expanded)}
-      >
-        <DetailTitle>{title}</DetailTitle>
-        <span>{expanded ? '▲' : '▼'}</span>
-      </DetailHeader>
-      
-      {expanded && (
-        <DetailContent>
-          {children}
-        </DetailContent>
-      )}
-    </DetailSection>
-  );
-};
-
-const getMetricKeys = (type: AnalysisType) => {
-  switch(type) {
-    case 'style':
-      return ['clarity', 'conciseness', 'formality', 'engagement', 'complexity'];
-    case 'impact':
-      return ['empathy', 'authority', 'persuasiveness', 'approachability', 'confidence'];
-    case 'result':
-      return ['effectiveness', 'actionability', 'memorability', 'influence', 'audience_fit'];
-    default:
-      return [];
-  }
-};
-
-const AnalysisOutput: React.FC<{
-  type: AnalysisType;
-  data: AnalysisResult | null;
-  isLoading: boolean;
-}> = ({ type, data, isLoading }) => {
-  if (isLoading) {
-    return (
-      <LoadingContainer>
-        <LoadingSpinner />
-        <LoadingText>Analyzing your message...</LoadingText>
-      </LoadingContainer>
-    );
-  }
-  
-  if (!data) {
-    return null;
-  }
-  
-  const metricKeys = getMetricKeys(type);
-  const { metrics, analysis = {}, summary = '', suggestions = [] } = data;
-  
-  return (
-    <AnalysisPanel>
-      <AnalysisHeader>
-        <AnalysisTitle>{type.charAt(0).toUpperCase() + type.slice(1)} Analysis</AnalysisTitle>
-      </AnalysisHeader>
-      
-      <GaugesContainer>
-        {metricKeys.map(key => (
-          <RadialGauge
-            key={key}
-            value={metrics[key] || 0}
-            label={key.replace('_', ' ')}
-            animate={true}
-          />
-        ))}
-      </GaugesContainer>
-      
-      {summary && (
-        <ExpandableSection title="Summary">
-          <p>{summary}</p>
-        </ExpandableSection>
-      )}
-      
-      <ExpandableSection title="Detailed Analysis">
-        {metricKeys.map(key => (
-          analysis[key] && (
-            <div key={key} style={{ marginBottom: '15px' }}>
-              <h4 style={{ 
-                margin: '0 0 5px 0', 
-                color: '#333', 
-                fontSize: '1rem',
-                textTransform: 'capitalize'
-              }}>
-                {key.replace('_', ' ')}
-              </h4>
-              <p style={{ margin: 0, color: '#555' }}>{analysis[key]}</p>
-            </div>
-          )
-        ))}
-      </ExpandableSection>
-      
-      {suggestions.length > 0 && (
-        <ExpandableSection title="Suggestions for Improvement">
-          <ul style={{ margin: '10px 0', paddingLeft: '20px' }}>
-            {suggestions.map((suggestion, index) => (
-              <li key={index} style={{ margin: '5px 0' }}>{suggestion}</li>
-            ))}
-          </ul>
-        </ExpandableSection>
-      )}
-    </AnalysisPanel>
-  );
-};
-
 const ReflectPage111: React.FC<PageProps> = ({ 
   isDesktop = false,
   toggleMenu = () => {} 
@@ -348,16 +188,38 @@ const ReflectPage111: React.FC<PageProps> = ({
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<any>(null);
-
+  
+  // Use the AuthContext instead of a separate user state
+  const { user, loading: authLoading } = useContext(AuthContext);
+  
+  // Create a ref to store the isDesktop value to prevent UI flicker during state changes
+  const isDesktopRef = useRef(isDesktop);
+  const [stableIsDesktop, setStableIsDesktop] = useState(isDesktop);
+  
+  // Update the isDesktop ref when the prop changes
   useEffect(() => {
-    // Check if user is authenticated
-    const fetchUserData = async () => {
-      const { data } = await supabase.auth.getUser();
-      setUser(data.user);
+    // Only update if there's a significant change to avoid flicker
+    // This prevents temporary changes during re-renders
+    if (isDesktop !== isDesktopRef.current && !isAnalyzing) {
+      isDesktopRef.current = isDesktop;
+      setStableIsDesktop(isDesktop);
+    }
+  }, [isDesktop, isAnalyzing]);
+  
+  // Force desktop/mobile detection on mount and window resize
+  useEffect(() => {
+    const checkScreenSize = () => {
+      const newIsDesktop = window.innerWidth >= 1024;
+      if (newIsDesktop !== isDesktopRef.current) {
+        isDesktopRef.current = newIsDesktop;
+        setStableIsDesktop(newIsDesktop);
+      }
     };
-
-    fetchUserData();
+    
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    
+    return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
   const handleAttachmentAdd = (files: FileList) => {
@@ -441,40 +303,101 @@ const ReflectPage111: React.FC<PageProps> = ({
 
   const isButtonDisabled = isAnalyzing || (!message && attachments.length === 0) || !user;
 
+  // Render different content based on the analysis state
+  const renderAnalysisContent = () => {
+    if (isAnalyzing) {
+      return (
+        <LoadingContainer>
+          <LoadingSpinner />
+          <LoadingText>Analyzing your message...</LoadingText>
+        </LoadingContainer>
+      );
+    }
+
+    if (!analysis) {
+      return (
+        <AnalysisTextContainer>
+          <p>Enter your message and click one of the analysis buttons below to get started.</p>
+        </AnalysisTextContainer>
+      );
+    }
+
+    // Get metrics based on analysis type
+    const getMetricKeys = () => {
+      switch(analysisType) {
+        case 'style':
+          return ['clarity', 'conciseness', 'formality', 'engagement', 'complexity'];
+        case 'impact':
+          return ['empathy', 'authority', 'persuasiveness', 'approachability', 'confidence'];
+        case 'result':
+          return ['effectiveness', 'actionability', 'memorability', 'influence', 'audience_fit'];
+        default:
+          return [];
+      }
+    };
+
+    const metricKeys = getMetricKeys();
+
+    return (
+      <>
+        <GaugesContainer>
+          {metricKeys.map(key => (
+            <GaugeItem key={key}>
+              <RadialGauge
+                value={analysis.metrics[key] || 0}
+                label=""
+                animate={true}
+                size={160}
+              />
+              <GaugeLabel>{key.replace('_', ' ')}</GaugeLabel>
+            </GaugeItem>
+          ))}
+        </GaugesContainer>
+        <AnalysisTextContainer>
+          <h3>{analysisType.charAt(0).toUpperCase() + analysisType.slice(1)} Analysis</h3>
+          <p>{analysis.summary}</p>
+          {analysis.suggestions && analysis.suggestions.length > 0 && (
+            <>
+              <h4>Suggestions</h4>
+              <ul>
+                {analysis.suggestions.map((suggestion, index) => (
+                  <li key={index}>{suggestion}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </AnalysisTextContainer>
+      </>
+    );
+  };
+
   return (
     <PageContainer>
-      {/* Add this test div here to confirm the component is loaded */}
-      <div style={{ background: 'red', padding: '20px', color: 'white', fontWeight: 'bold', textAlign: 'center' }}>
-        UPDATED COMPONENT LOADED - TEST INDICATOR
-      </div>
+      {!stableIsDesktop && <Navigation toggleMenu={toggleMenu} isDesktop={stableIsDesktop} />}
       
-      {!isDesktop && <Navigation toggleMenu={toggleMenu} />}
-      
-      <ContentArea isDesktop={isDesktop}>
-        {isDesktop && <DesktopHeader>Reflect: Analyze Your Communication</DesktopHeader>}
+      <ContentArea isDesktop={!!stableIsDesktop}>
+        {stableIsDesktop && <PageTitle>REFLECT</PageTitle>}
         
         {error && <ErrorMessage>{error}</ErrorMessage>}
         
-        {!user && (
+        {!user && !authLoading && (
           <div style={{ textAlign: 'center', margin: '20px 0' }}>
             <p>Please sign in to use the analysis features</p>
             <AuthButton onClick={handleSignIn}>Sign In / Create Account</AuthButton>
           </div>
         )}
         
-        <AnalysisOutput 
-          type={analysisType}
-          data={analysis}
-          isLoading={isAnalyzing}
-        />
+        {renderAnalysisContent()}
         
-        <MessageInput 
-          value={message}
-          onChange={setMessage}
-          onAttach={handleAttachmentAdd}
-          attachments={attachments}
-          onAttachmentRemove={handleAttachmentRemove}
-        />
+        <InputContainer>
+          <MessageInput 
+            value={message}
+            onChange={setMessage}
+            onAttach={handleAttachmentAdd}
+            attachments={attachments}
+            onAttachmentRemove={handleAttachmentRemove}
+          />
+        </InputContainer>
         
         <ButtonsContainer>
           <AnalysisButton 
@@ -501,7 +424,7 @@ const ReflectPage111: React.FC<PageProps> = ({
         </ButtonsContainer>
       </ContentArea>
       
-      {!isDesktop && <Footer>HIT</Footer>}
+      {!stableIsDesktop && <Footer>HIT</Footer>}
     </PageContainer>
   );
 };

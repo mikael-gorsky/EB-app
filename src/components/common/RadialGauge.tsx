@@ -1,3 +1,4 @@
+// src/components/common/RadialGauge.tsx
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 
@@ -55,12 +56,18 @@ const DigitalDisplay = styled.div<{
   font-weight: bold;
   color: ${props => props.theme.colors.text.primary || '#333'};
   text-align: center;
-  padding: 5px;
-  background-color: rgba(255, 255, 255, 0.5);
-  border-radius: 5px;
-  backdrop-filter: blur(2px);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 `;
+
+// Function to get color based on value
+const getColorForValue = (value: number): string => {
+  if (value < 33) {
+    return '#e53935'; // Red for low values
+  } else if (value < 66) {
+    return '#ffb300'; // Yellow for medium values
+  } else {
+    return '#4caf50'; // Green for high values
+  }
+};
 
 /**
  * RadialGauge Component
@@ -73,7 +80,7 @@ const RadialGauge: React.FC<RadialGaugeProps> = ({
   max = 100,
   label = '',
   size = 120,
-  thickness = 10,
+  thickness = 12, // Increased thickness
   color = '#38a3a5',
   backgroundColor = '#e0e0e0',
   labelSize = 14,
@@ -142,41 +149,35 @@ const RadialGauge: React.FC<RadialGaugeProps> = ({
   // Arc flag is always 0 for less than 180 degrees
   const largeArcFlag = angle > 180 ? 1 : 0;
   
-  // Calculate tick marks
-  const ticks = [];
-  const tickCount = 10; // Number of ticks
-  
-  for (let i = 0; i <= tickCount; i++) {
-    const tickAngle = startAngle + (i / tickCount) * 180;
-    const tickRad = (tickAngle * Math.PI) / 180;
-    
-    const innerRadius = radius - thickness / 2;
-    const outerRadius = radius + thickness / 2 + (i % 5 === 0 ? 4 : 2); // Longer ticks for major marks
-    
-    const innerX = centerX + innerRadius * Math.cos(tickRad);
-    const innerY = centerY + innerRadius * Math.sin(tickRad);
-    const outerX = centerX + outerRadius * Math.cos(tickRad);
-    const outerY = centerY + outerRadius * Math.sin(tickRad);
-    
-    ticks.push({ innerX, innerY, outerX, outerY });
-  }
-  
-  // Determine color based on value (gradient from red to green)
-  const getColor = () => {
-    if (normalizedValue <= 0.33) {
-      return '#e53935'; // Red for low values
-    } else if (normalizedValue <= 0.66) {
-      return '#ffb300'; // Yellow for medium values
+  // Create gradient stops based on value
+  const getGradientStops = () => {
+    if (value < 33) {
+      return (
+        <>
+          <stop offset="0%" stopColor="#f44336" />
+          <stop offset="100%" stopColor="#ff9800" />
+        </>
+      );
+    } else if (value < 66) {
+      return (
+        <>
+          <stop offset="0%" stopColor="#ff9800" />
+          <stop offset="100%" stopColor="#ffeb3b" />
+        </>
+      );
     } else {
-      return color; // Theme color for high values
+      return (
+        <>
+          <stop offset="0%" stopColor="#ffeb3b" />
+          <stop offset="100%" stopColor="#4caf50" />
+        </>
+      );
     }
   };
   
-  const gaugeColor = getColor();
-  
   // Calculate needle position
   const needleAngleRad = ((startAngle + angle) * Math.PI) / 180;
-  const needleLength = radius - 5;
+  const needleLength = radius;
   const needleX = centerX + needleLength * Math.cos(needleAngleRad);
   const needleY = centerY + needleLength * Math.sin(needleAngleRad);
   
@@ -184,6 +185,13 @@ const RadialGauge: React.FC<RadialGaugeProps> = ({
     <GaugeContainer size={size}>
       <SvgContainer size={size}>
         <svg width="100%" height="100%" viewBox={`0 0 ${size} ${size}`} overflow="visible">
+          {/* Define gradient */}
+          <defs>
+            <linearGradient id={`gauge-gradient-${value}`} x1="0%" y1="0%" x2="100%" y2="0%">
+              {getGradientStops()}
+            </linearGradient>
+          </defs>
+          
           {/* Background Arc */}
           <path
             d={`M ${startX} ${startY} A ${radius} ${radius} 0 1 1 ${size} ${centerY}`}
@@ -193,28 +201,14 @@ const RadialGauge: React.FC<RadialGaugeProps> = ({
             strokeLinecap="round"
           />
           
-          {/* Value Arc */}
+          {/* Value Arc with gradient */}
           <path
             d={`M ${startX} ${startY} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${endX} ${endY}`}
             fill="none"
-            stroke={gaugeColor}
+            stroke={`url(#gauge-gradient-${value})`}
             strokeWidth={thickness}
             strokeLinecap="round"
           />
-          
-          {/* Tick Marks */}
-          {ticks.map((tick, index) => (
-            <line
-              key={index}
-              x1={tick.innerX}
-              y1={tick.innerY}
-              x2={tick.outerX}
-              y2={tick.outerY}
-              stroke="#888"
-              strokeWidth={index % 5 === 0 ? 2 : 1}
-              opacity={0.6}
-            />
-          ))}
           
           {/* Needle */}
           <line
@@ -223,7 +217,7 @@ const RadialGauge: React.FC<RadialGaugeProps> = ({
             x2={needleX}
             y2={needleY}
             stroke="#333"
-            strokeWidth={2}
+            strokeWidth={3}
             strokeLinecap="round"
           />
           
@@ -231,8 +225,38 @@ const RadialGauge: React.FC<RadialGaugeProps> = ({
           <circle
             cx={centerX}
             cy={centerY}
-            r={5}
+            r={thickness / 2}
             fill="#333"
+          />
+          
+          {/* Tick marks - Red (0-33) */}
+          <path
+            d={`M ${centerX - radius - thickness/2} ${centerY} A ${radius + thickness/2} ${radius + thickness/2} 0 0 1 ${centerX - (radius + thickness/2) * Math.cos(120 * Math.PI / 180)} ${centerY - (radius + thickness/2) * Math.sin(120 * Math.PI / 180)}`}
+            fill="none"
+            stroke="#f44336"
+            strokeWidth={4}
+            strokeLinecap="round"
+            strokeDasharray="2 15"
+          />
+          
+          {/* Tick marks - Yellow (33-66) */}
+          <path
+            d={`M ${centerX - (radius + thickness/2) * Math.cos(120 * Math.PI / 180)} ${centerY - (radius + thickness/2) * Math.sin(120 * Math.PI / 180)} A ${radius + thickness/2} ${radius + thickness/2} 0 0 1 ${centerX + (radius + thickness/2) * Math.cos(120 * Math.PI / 180)} ${centerY - (radius + thickness/2) * Math.sin(120 * Math.PI / 180)}`}
+            fill="none"
+            stroke="#ffb300"
+            strokeWidth={4}
+            strokeLinecap="round"
+            strokeDasharray="2 15"
+          />
+          
+          {/* Tick marks - Green (66-100) */}
+          <path
+            d={`M ${centerX + (radius + thickness/2) * Math.cos(120 * Math.PI / 180)} ${centerY - (radius + thickness/2) * Math.sin(120 * Math.PI / 180)} A ${radius + thickness/2} ${radius + thickness/2} 0 0 1 ${centerX + radius + thickness/2} ${centerY}`}
+            fill="none"
+            stroke="#4caf50"
+            strokeWidth={4}
+            strokeLinecap="round"
+            strokeDasharray="2 15"
           />
         </svg>
       </SvgContainer>

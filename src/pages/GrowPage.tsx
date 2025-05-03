@@ -1,67 +1,113 @@
 // src/pages/GrowPage.tsx
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
+import { useNavigate, useLocation } from 'react-router-dom';
 import Navigation from '../components/common/Navigation';
-import CategorySection from '../components/grow/CategorySection';
 import { PageProps } from '../layouts/AppLayout';
 
-const PageContainer = styled.div<{ isDesktop?: boolean }>`
+const PageContainer = styled.div`
   min-height: 100vh;
-  max-height: 100vh;
   background-color: ${({ theme }) => theme.colors.background.main};
   display: flex;
   flex-direction: column;
-  padding-bottom: 20px;
-  
-  @media (min-width: 1024px) {
-    padding: ${props => props.isDesktop ? '20px' : '0'};
-  }
 `;
 
-const LogoContainer = styled.div<{ isDesktop?: boolean }>`
+const ContentArea = styled.div<{ isDesktop: boolean }>`
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+`;
+
+const PageTitle = styled.h1`
+  color: #333;
+  font-size: 2rem;
+  margin-bottom: 30px;
+  text-transform: uppercase;
+`;
+
+const SectionTitle = styled.h2`
+  color: #38a3a5;
+  font-size: 2rem;
+  margin: 30px 0 15px 0;
+`;
+
+const ModulesGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+  margin-top: 10px;
+`;
+
+const ModuleCard = styled.div<{ bgColor: string }>`
+  background: ${props => props.bgColor};
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 120px;
+  padding: 20px;
   text-align: center;
-  margin: ${({ theme }) => theme.spacing.xs} 0;
+  color: black;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+`;
+
+const Footer = styled.div`
+  text-align: center;
+  padding: 10px;
   color: ${({ theme }) => theme.colors.primary};
   font-weight: bold;
-  font-size: ${({ theme }) => theme.fontSizes.large};
-  
-  @media (min-width: 1024px) {
-    display: ${props => props.isDesktop ? 'none' : 'block'};
-  }
+  font-size: 1.2rem;
 `;
 
-const ContentContainer = styled.div<{ isDesktop?: boolean }>`
-  flex: 1;
-  overflow-y: auto;
-  padding: 0 ${({ theme }) => theme.spacing.s};
-  
-  @media (min-width: 1024px) {
-    max-width: ${props => props.isDesktop ? '1200px' : 'none'};
-    margin: ${props => props.isDesktop ? '0 auto' : '0'};
-    padding: ${props => props.isDesktop ? '20px' : '0'};
-    background-color: ${props => props.isDesktop ? 'white' : 'transparent'};
-    border-radius: ${props => props.isDesktop ? '10px' : '0'};
-    box-shadow: ${props => props.isDesktop ? '0 2px 10px rgba(0, 0, 0, 0.1)' : 'none'};
-  }
-`;
+interface Module {
+  id: string;
+  title: string;
+  bgColor: string;
+}
 
-const DesktopHeader = styled.h1`
-  color: ${({ theme }) => theme.colors.primary};
-  margin-top: 0;
-  margin-bottom: 20px;
-  font-size: 1.5rem;
-  display: none;
-  
-  @media (min-width: 1024px) {
-    display: block;
-  }
-`;
+interface GrowPageProps extends PageProps {
+  subpage?: string;
+}
 
-// Updated to include the PageProps interface
-const GrowPage: React.FC<PageProps> = ({
+const GrowPage: React.FC<GrowPageProps> = ({
   isDesktop = false,
-  toggleMenu = () => {}
+  toggleMenu = () => {},
+  subpage
 }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [activeSubpage, setActiveSubpage] = useState('learn');
+  
+  // Determine if we're on the main grow page or a sub-section
+  const isMainGrowPage = location.pathname === '/grow';
+  
+  useEffect(() => {
+    // Only redirect if not on the main grow page
+    if (!isMainGrowPage) {
+      // Determine active subpage from URL if not provided as prop
+      if (!subpage) {
+        const path = location.pathname.split('/');
+        if (path.length > 2 && ['learn', 'play', 'test'].includes(path[2])) {
+          setActiveSubpage(path[2]);
+        } else {
+          // Only redirect if we're not on a module page
+          const isModulePage = path.length > 2 && !['learn', 'play', 'test'].includes(path[2]);
+          if (!isModulePage) {
+            // Default to 'learn' and update URL
+            navigate('/grow/learn', { replace: true });
+          }
+        }
+      } else {
+        setActiveSubpage(subpage);
+      }
+    }
+  }, [location, navigate, subpage, isMainGrowPage]);
+  
+  // Module data for different sections
   const learnModules = [
     { id: 'ei', title: 'Emotional Intelligence', bgColor: 'linear-gradient(135deg, #00bcd4, #2196f3)' },
     { id: 'nvc', title: 'Non-violent Communication', bgColor: 'linear-gradient(135deg, #ffb0ed, #ff99cc)' },
@@ -84,34 +130,125 @@ const GrowPage: React.FC<PageProps> = ({
   ];
 
   const handleModuleClick = (moduleId: string) => {
-    console.log(`Module clicked: ${moduleId}`);
+    navigate(`/grow/${moduleId}`);
+  };
+
+  const renderModules = () => {
+    if (!isMainGrowPage && !isDesktop) {
+      // If we're on a sub-page in mobile view, only show the modules for that section
+      switch (activeSubpage) {
+        case 'learn':
+          return (
+            <>
+              <SectionTitle>Learn</SectionTitle>
+              <ModulesGrid>
+                {learnModules.map(module => (
+                  <ModuleCard
+                    key={module.id}
+                    bgColor={module.bgColor}
+                    onClick={() => handleModuleClick(module.id)}
+                  >
+                    {module.title}
+                  </ModuleCard>
+                ))}
+              </ModulesGrid>
+            </>
+          );
+        case 'play':
+          return (
+            <>
+              <SectionTitle>Play</SectionTitle>
+              <ModulesGrid>
+                {playModules.map(module => (
+                  <ModuleCard
+                    key={module.id}
+                    bgColor={module.bgColor}
+                    onClick={() => handleModuleClick(module.id)}
+                  >
+                    {module.title}
+                  </ModuleCard>
+                ))}
+              </ModulesGrid>
+            </>
+          );
+        case 'test':
+          return (
+            <>
+              <SectionTitle>Test</SectionTitle>
+              <ModulesGrid>
+                {testModules.map(module => (
+                  <ModuleCard
+                    key={module.id}
+                    bgColor={module.bgColor}
+                    onClick={() => handleModuleClick(module.id)}
+                  >
+                    {module.title}
+                  </ModuleCard>
+                ))}
+              </ModulesGrid>
+            </>
+          );
+        default:
+          return null;
+      }
+    } else {
+      // On the main page or desktop view, show all sections
+      return (
+        <>
+          <SectionTitle>Learn</SectionTitle>
+          <ModulesGrid>
+            {learnModules.map(module => (
+              <ModuleCard
+                key={module.id}
+                bgColor={module.bgColor}
+                onClick={() => handleModuleClick(module.id)}
+              >
+                {module.title}
+              </ModuleCard>
+            ))}
+          </ModulesGrid>
+          
+          <SectionTitle>Play</SectionTitle>
+          <ModulesGrid>
+            {playModules.map(module => (
+              <ModuleCard
+                key={module.id}
+                bgColor={module.bgColor}
+                onClick={() => handleModuleClick(module.id)}
+              >
+                {module.title}
+              </ModuleCard>
+            ))}
+          </ModulesGrid>
+          
+          <SectionTitle>Test</SectionTitle>
+          <ModulesGrid>
+            {testModules.map(module => (
+              <ModuleCard
+                key={module.id}
+                bgColor={module.bgColor}
+                onClick={() => handleModuleClick(module.id)}
+              >
+                {module.title}
+              </ModuleCard>
+            ))}
+          </ModulesGrid>
+        </>
+      );
+    }
   };
 
   return (
-    <PageContainer isDesktop={isDesktop}>
+    <PageContainer>
       {!isDesktop && <Navigation toggleMenu={toggleMenu} isDesktop={isDesktop} />}
       
-      <ContentContainer isDesktop={isDesktop}>
-        {isDesktop && <DesktopHeader>Grow: Develop Your Communication Skills</DesktopHeader>}
+      <ContentArea isDesktop={!!isDesktop}>
+        {isDesktop && <PageTitle>GROW</PageTitle>}
         
-        <CategorySection 
-          title="Learn" 
-          modules={learnModules} 
-          onModuleClick={handleModuleClick}
-        />
-        <CategorySection 
-          title="Play" 
-          modules={playModules} 
-          onModuleClick={handleModuleClick}
-        />
-        <CategorySection 
-          title="Test" 
-          modules={testModules} 
-          onModuleClick={handleModuleClick}
-        />
-      </ContentContainer>
+        {renderModules()}
+      </ContentArea>
       
-      {!isDesktop && <LogoContainer isDesktop={isDesktop}>HIT</LogoContainer>}
+      {!isDesktop && <Footer>HIT</Footer>}
     </PageContainer>
   );
 };

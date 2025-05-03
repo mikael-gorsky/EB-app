@@ -17,8 +17,10 @@ const LayoutContainer = styled.div`
   min-height: 100vh;
 `;
 
-const Content = styled.div`
+const Content = styled.div<{ isDesktop?: boolean }>`
   flex: 1;
+  background-color: ${props => props.isDesktop ? '#f5f5f5' : 'transparent'};
+  padding: ${props => props.isDesktop ? '20px' : '0'};
 `;
 
 interface AppLayoutProps {
@@ -30,19 +32,12 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
   
-  // Determine active page based on route
-  const getActivePage = () => {
-    if (location.pathname.includes('/reflect')) return 'reflect';
-    if (location.pathname.includes('/grow')) return 'grow';
-    if (location.pathname.includes('/history')) return 'history';
-    if (location.pathname.includes('/analysis')) return 'history';
-    return '';
-  };
-  
   // Check screen size on mount and resize
   useEffect(() => {
     const checkScreenSize = () => {
-      setIsDesktop(window.innerWidth >= 1024);
+      const isDesktopValue = window.innerWidth >= 1024;
+      console.log(`Screen width: ${window.innerWidth}, isDesktop: ${isDesktopValue}`);
+      setIsDesktop(isDesktopValue);
     };
     
     checkScreenSize();
@@ -58,6 +53,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   // Clone children with isDesktop prop
   const childrenWithProps = React.Children.map(children, child => {
     if (React.isValidElement(child)) {
+      console.log(`Cloning child with isDesktop=${isDesktop}`);
       // Use type assertion to solve TypeScript error
       return React.cloneElement(child as any, { 
         isDesktop,
@@ -70,17 +66,19 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   return (
     <LayoutContainer>
       {/* Desktop Header - only shown on larger screens */}
-      {isDesktop && <DesktopHeader activePage={getActivePage()} />}
+      {isDesktop && <DesktopHeader />}
       
       {/* Content area */}
-      <Content>
+      <Content isDesktop={isDesktop}>
         {childrenWithProps}
         
         {/* Mobile menu */}
-        <HamburgerMenu 
-          isOpen={menuOpen} 
-          onClose={() => setMenuOpen(false)} 
-        />
+        {!isDesktop && (
+          <HamburgerMenu 
+            isOpen={menuOpen} 
+            onClose={() => setMenuOpen(false)} 
+          />
+        )}
       </Content>
     </LayoutContainer>
   );
