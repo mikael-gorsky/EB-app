@@ -22,27 +22,5 @@ export const analyzeText = async (message: string, type: 'style' | 'impact' | 'r
   }
 };
 
-export const saveAnalysisResult = async (messageId: string, type: string, metrics: any) => {
-  try {
-    console.log(`Saving analysis result for message: ${messageId}, type: ${type}`);
-    
-    const { error } = await supabase
-      .from('analysis_results')
-      .insert({
-        message_id: messageId,
-        type,
-        metrics
-      });
-      
-    if (error) {
-      console.error('Error saving analysis result:', error);
-      throw error;
-    }
-    
-    console.log('Analysis result saved successfully');
-    return true;
-  } catch (error: any) {
-    console.error('Error saving analysis result:', error.message || error);
-    throw error;
-  }
-};
+// Note: We don't need a separate saveAnalysisResult function as we're handling
+// that directly in the ReflectPage111.tsx component now

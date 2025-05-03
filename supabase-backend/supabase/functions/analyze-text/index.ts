@@ -42,7 +42,7 @@ serve(async (req) => {
       throw new Error(`Invalid request body: ${e.message}`);
     }
     
-    const { message, type } = requestBody;
+    const { message, type, model = 'gpt-4.1-mini', promptOverride = null } = requestBody;
     
     // Validate input
     if (!message) {
@@ -72,30 +72,35 @@ serve(async (req) => {
     });
     
     debugInfo.steps.push('OpenAI client initialized');
+    debugInfo.steps.push(`Using model: ${model}`);
 
-    // Prepare prompt based on analysis type
-    let prompt = '';
-    if (type === 'style') {
-      prompt = `Analyze the style of this text: "${message}" 
-                Return a JSON object with:
-                1. "metrics" object with numerical scores for: clarity, conciseness, formality, engagement, and complexity on a scale of 0-100.
-                2. "analysis" object with detailed text explanations for each metric.
-                3. "summary" string with an overall analysis of the text style.
-                4. "suggestions" array with 2-3 specific, actionable suggestions to improve the style -- YOU MUST GIVE SUGGESTIONS IN THE SAME LANGUAGE THAT THE TEXT YOU ANALYZE.`;
-    } else if (type === 'impact') {
-      prompt = `Analyze the emotional impact of this text: "${message}" 
-                Return a JSON object with:
-                1. "metrics" object with numerical scores for: empathy, authority, persuasiveness, approachability, and confidence on a scale of 0-100.
-                2. "analysis" object with detailed text explanations for each metric.
-                3. "summary" string with an overall analysis of the emotional impact.
-                4. "suggestions" array with 2-3 specific, actionable suggestions to improve the emotional impact -- YOU MUST GIVE SUGGESTIONS IN THE SAME LANGUAGE THAT THE TEXT YOU ANALYZE.`;
-    } else if (type === 'result') {
-      prompt = `Analyze the potential results of this message: "${message}" 
-                Return a JSON object with:
-                1. "metrics" object with numerical scores for: effectiveness, actionability, memorability, influence, and audience_fit on a scale of 0-100.
-                2. "analysis" object with detailed text explanations for each metric.
-                3. "summary" string with an overall prediction of the message's results.
-                4. "suggestions" array with 2-3 specific, actionable suggestions to improve the results -- YOU MUST GIVE SUGGESTIONS IN THE SAME LANGUAGE THAT THE TEXT YOU ANALYZE.`;
+    // Prepare prompt based on analysis type or use override
+    let prompt = promptOverride;
+    
+    // If no override is provided, use the default prompts
+    if (!prompt) {
+      if (type === 'style') {
+        prompt = `Analyze the style of this text: "${message}" 
+                  Return a JSON object with:
+                  1. "metrics" object with numerical scores for: clarity, conciseness, formality, engagement, and complexity on a scale of 0-100.
+                  2. "analysis" object with detailed text explanations for each metric.
+                  3. "summary" string with an overall analysis of the text style.
+                  4. "suggestions" array with 2-3 specific, actionable suggestions to improve the style -- YOU MUST GIVE SUGGESTIONS IN THE SAME LANGUAGE THAT THE TEXT YOU ANALYZE.`;
+      } else if (type === 'impact') {
+        prompt = `Analyze the emotional impact of this text: "${message}" 
+                  Return a JSON object with:
+                  1. "metrics" object with numerical scores for: empathy, authority, persuasiveness, approachability, and confidence on a scale of 0-100.
+                  2. "analysis" object with detailed text explanations for each metric.
+                  3. "summary" string with an overall analysis of the emotional impact.
+                  4. "suggestions" array with 2-3 specific, actionable suggestions to improve the emotional impact -- YOU MUST GIVE SUGGESTIONS IN THE SAME LANGUAGE THAT THE TEXT YOU ANALYZE.`;
+      } else if (type === 'result') {
+        prompt = `Analyze the potential results of this message: "${message}" 
+                  Return a JSON object with:
+                  1. "metrics" object with numerical scores for: effectiveness, actionability, memorability, influence, and audience_fit on a scale of 0-100.
+                  2. "analysis" object with detailed text explanations for each metric.
+                  3. "summary" string with an overall prediction of the message's results.
+                  4. "suggestions" array with 2-3 specific, actionable suggestions to improve the results -- YOU MUST GIVE SUGGESTIONS IN THE SAME LANGUAGE THAT THE TEXT YOU ANALYZE.`;
+      }
     }
     
     debugInfo.steps.push('Prompt prepared');
@@ -107,7 +112,7 @@ serve(async (req) => {
     
     try {
       completion = await openAI.chat.completions.create({
-        model: 'gpt-4.1-mini',
+        model: model,
         messages: [
           { role: 'system', content: 'You are an AI assistant that analyzes text and provides both metrics and detailed explanations and YOU MUST GIVE SUGGESTIONS IN THE SAME LANGUAGE THAT THE TEXT YOU ANALYZE.' },
           { role: 'user', content: prompt }

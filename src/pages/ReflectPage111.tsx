@@ -4,9 +4,15 @@ import styled from 'styled-components';
 import Navigation from '../components/common/Navigation';
 import MessageInput from '../components/reflect/MessageInput';
 import ReflectionOutput from '../components/reflect/ReflectionOutput';
-import { analyzeText, saveAnalysisResult } from '../services/analysis';
+import { analyzeText, AnalysisType, AnalysisResult } from '../services/ai';
 import { supabase } from '../utils/supabaseClient';
 import { PageProps } from '../layouts/AppLayout';
+import { useNavigate } from 'react-router-dom';
+
+// Set the AI provider once at application startup
+// This can be called elsewhere like in your main app initialization
+// import { setAIProvider } from '../services/ai';
+// setAIProvider('openai', { model: 'gpt-4.1-mini' });
 
 const PageContainer = styled.div`
   min-height: 100vh;
@@ -83,27 +89,38 @@ const ErrorMessage = styled.div`
   text-align: center;
 `;
 
+const AuthButton = styled.button`
+  background-color: ${({ theme }) => theme.colors.primary};
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 15px;
+  margin: 10px 0;
+  cursor: pointer;
+  font-weight: 500;
+`;
+
 const ReflectPage111: React.FC<PageProps> = ({ 
   isDesktop = false,
   toggleMenu = () => {} 
 }) => {
-  const [analysisType, setAnalysisType] = useState<'style' | 'impact' | 'result'>('style');
+  const navigate = useNavigate();
+  const [analysisType, setAnalysisType] = useState<AnalysisType>('style');
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState<File[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysis, setAnalysis] = useState<any>(null);
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
-  const [currentConversationId, setCurrentConversationId] = useState<string>('default');
 
   useEffect(() => {
     // Check if user is authenticated
-    const fetchUser = async () => {
+    const fetchUserData = async () => {
       const { data } = await supabase.auth.getUser();
       setUser(data.user);
     };
 
-    fetchUser();
+    fetchUserData();
   }, []);
 
   const handleAttachmentAdd = (files: FileList) => {
@@ -115,172 +132,77 @@ const ReflectPage111: React.FC<PageProps> = ({
     setAttachments(attachments.filter((_, i) => i !== index));
   };
   
-  const handleAnalyze = async (type: 'style' | 'impact' | 'result') => {
+  const handleAnalyze = async (type: AnalysisType) => {
     if (!message && attachments.length === 0) return;
+    
+    // Check if user is authenticated
+    if (!user) {
+      setError('Please sign in to analyze messages');
+      return;
+    }
     
     setAnalysisType(type);
     setIsAnalyzing(true);
     setError(null);
+    setAnalysis(null); // Reset previous analysis
     
     try {
-      // First, create a conversation if needed
-      let conversationId = currentConversationId;
-      
-      if (conversationId === 'default') {
-        try {
-          const { data: conversationData, error: conversationError } = await supabase
-            .from('conversations')
-            .insert({
-              title: `Analysis session ${new Date().toLocaleString()}`,
-              user_id: user?.id || 'anonymous'
-            })
-            .select()
-            .single();
-          
-          if (conversationError) {
-            console.error('Error creating conversation:', conversationError);
-          } else if (conversationData) {
-            conversationId = conversationData.id;
-            setCurrentConversationId(conversationId);
-          }
-        } catch (err) {
-          console.error('Error in conversation creation:', err);
-          // If we fail, just continue with the default ID
-        }
-      }
-      
-      // Now save the message
+      // Save the message first
       const { data: messageData, error: messageError } = await supabase
         .from('messages')
         .insert({
           content: message,
-          conversation_id: conversationId,
-          user_id: user?.id || 'anonymous',
-          file_ids: attachments.length > 0 ? attachments.map(file => file.name) : null
+          user_id: user.id,
+          message_type: type
         })
         .select()
         .single();
       
       if (messageError) {
         console.error('Error saving message:', messageError);
-        throw new Error('Failed to save message');
+        throw new Error(`Failed to save message: ${messageError.message}`);
       }
       
-      // Try to analyze the text using the Edge Function
-      try {
-        const analysisResult = await analyzeText(message, type);
-        
-        // If successful, save the analysis result
-        if (messageData?.id) {
-          await saveAnalysisResult(messageData.id, type, analysisResult);
-        }
-        
-        // Update the UI with the analysis result
-        setAnalysis(analysisResult);
-      } catch (analysisError) {
-        console.error('Analysis API error:', analysisError);
-        
-        // Fallback to mock data if the API fails
-        console.log('Using fallback mock data for analysis');
-        const mockAnalysis = generateMockAnalysis(type);
-        
-        setAnalysis(mockAnalysis);
-        
-        // Try to save the mock analysis
-        if (messageData?.id) {
-          try {
-            await saveAnalysisResult(messageData.id, type, mockAnalysis);
-          } catch (saveError) {
-            console.error('Error saving mock analysis:', saveError);
-          }
-        }
+      if (!messageData) {
+        throw new Error('No message data returned from database');
       }
+      
+      // Call the analyze function from our modular AI service
+      const analysisResult = await analyzeText(message, type);
+      
+      // Extract components from the result for database storage
+      const { metrics, analysis: explanations, suggestions } = analysisResult;
+      
+      // Save the analysis result
+      const { error: analysisError } = await supabase
+        .from('analysis_results')
+        .insert({
+          message_id: messageData.id,
+          metrics: metrics || {},
+          explanations: explanations || {},
+          suggestions: suggestions || []
+        });
+      
+      if (analysisError) {
+        console.error('Error saving analysis result:', analysisError);
+        throw new Error(`Failed to save analysis: ${analysisError.message}`);
+      }
+      
+      // Update the UI
+      setAnalysis(analysisResult);
     } catch (err: any) {
-      console.error('Analysis workflow error:', err);
-      setError(err.message || 'Failed to analyze text. Please try again.');
+      console.error('Analysis error:', err);
+      setError(`Analysis failed: ${err.message || 'Unknown error'}`);
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  // Function to generate mock data if the API fails
-  const generateMockAnalysis = (type: 'style' | 'impact' | 'result') => {
-    const mockData: any = {
-      metrics: {},
-      analysis: {},
-      summary: '',
-      suggestions: []
-    };
-    
-    if (type === 'style') {
-      mockData.metrics = {
-        clarity: Math.floor(Math.random() * 30) + 70, // 70-100
-        conciseness: Math.floor(Math.random() * 40) + 60, // 60-100
-        formality: Math.floor(Math.random() * 60) + 40, // 40-100
-        engagement: Math.floor(Math.random() * 30) + 70, // 70-100
-        complexity: Math.floor(Math.random() * 50) + 30 // 30-80
-      };
-      mockData.analysis = {
-        clarity: 'The message is generally clear and understandable.',
-        conciseness: 'The message uses an appropriate amount of words to convey the content.',
-        formality: 'The message has a moderate level of formality suitable for professional settings.',
-        engagement: 'The text is engaging and likely to maintain reader interest.',
-        complexity: 'The complexity is appropriate for the intended audience.'
-      };
-      mockData.summary = 'This message is clear and engaging with an appropriate level of formality and complexity.';
-      mockData.suggestions = [
-        'Consider breaking longer sentences into shorter ones for improved clarity.',
-        'Adding specific examples could enhance understanding.',
-        'Using bullet points might improve readability for key points.'
-      ];
-    } else if (type === 'impact') {
-      mockData.metrics = {
-        empathy: Math.floor(Math.random() * 40) + 60, // 60-100
-        authority: Math.floor(Math.random() * 60) + 40, // 40-100
-        persuasiveness: Math.floor(Math.random() * 40) + 60, // 60-100
-        approachability: Math.floor(Math.random() * 30) + 70, // 70-100
-        confidence: Math.floor(Math.random() * 30) + 70 // 70-100
-      };
-      mockData.analysis = {
-        empathy: 'The message shows understanding of the reader\'s perspective.',
-        authority: 'The message conveys knowledge and expertise appropriately.',
-        persuasiveness: 'The content is reasonably convincing in its arguments.',
-        approachability: 'The tone is friendly and inviting to the reader.',
-        confidence: 'The message projects confidence without being overly assertive.'
-      };
-      mockData.summary = 'This message effectively balances empathy and authority while maintaining an approachable tone.';
-      mockData.suggestions = [
-        'Adding acknowledgment of potential concerns could increase empathy.',
-        'Including more concrete evidence would enhance persuasiveness.',
-        'Using more personal language might improve approachability.'
-      ];
-    } else { // result
-      mockData.metrics = {
-        effectiveness: Math.floor(Math.random() * 30) + 70, // 70-100
-        actionability: Math.floor(Math.random() * 40) + 60, // 60-100
-        memorability: Math.floor(Math.random() * 50) + 50, // 50-100
-        influence: Math.floor(Math.random() * 40) + 60, // 60-100
-        audience_fit: Math.floor(Math.random() * 30) + 70 // 70-100
-      };
-      mockData.analysis = {
-        effectiveness: 'The message is likely to achieve its intended purpose.',
-        actionability: 'The reader can identify clear actions to take after reading.',
-        memorability: 'Key points of the message are likely to be remembered.',
-        influence: 'The message has good potential to influence opinions or behavior.',
-        audience_fit: 'The content and tone are well-matched to the intended audience.'
-      };
-      mockData.summary = 'This message effectively targets the intended audience and provides clear, actionable information.';
-      mockData.suggestions = [
-        'Including a clear call-to-action would improve actionability.',
-        'Using more memorable phrasing or metaphors could enhance retention.',
-        'Tailoring some examples specifically to the audience would increase relevance.'
-      ];
-    }
-    
-    return mockData;
+  const handleSignIn = () => {
+    navigate('/auth');
   };
 
-  const isButtonDisabled = isAnalyzing || (!message && attachments.length === 0);
+  const isButtonDisabled = isAnalyzing || (!message && attachments.length === 0) || !user;
 
   return (
     <PageContainer>
@@ -290,6 +212,13 @@ const ReflectPage111: React.FC<PageProps> = ({
         {isDesktop && <DesktopHeader>Reflect: Analyze Your Communication</DesktopHeader>}
         
         {error && <ErrorMessage>{error}</ErrorMessage>}
+        
+        {!user && (
+          <div style={{ textAlign: 'center', margin: '20px 0' }}>
+            <p>Please sign in to use the analysis features</p>
+            <AuthButton onClick={handleSignIn}>Sign In / Create Account</AuthButton>
+          </div>
+        )}
         
         <ReflectionOutput 
           analysisType={analysisType}
