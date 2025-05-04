@@ -1,7 +1,7 @@
 // src/services/ai/types.ts
 // Type definitions for the AI service
 
-export type AnalysisType = 'style' | 'impact' | 'result';
+export type AnalysisType = 'style' | 'impact' | 'outcome';
 
 export interface AnalysisResult {
   metrics: Record<string, number>;

@@ -303,11 +303,11 @@ const ReflectPage111: React.FC<PageProps> = ({
     const getMetricKeys = () => {
       switch(analysisType) {
         case 'style':
-          return ['clarity', 'conciseness', 'formality', 'engagement', 'complexity'];
+          return ['clearness', 'emotion', 'focus', 'respect', 'warmth'];
         case 'impact':
-          return ['empathy', 'authority', 'persuasiveness', 'approachability', 'confidence'];
-        case 'result':
-          return ['effectiveness', 'actionability', 'memorability', 'influence', 'audience_fit'];
+          return ['empathy', 'inspiration', 'authority', 'persuasiveness', 'sincerity'];
+        case 'outcome':
+          return ['effectiveness', 'actionability', 'memorability', 'solution', 'influence'];
         default:
           return [];
       }
@@ -385,11 +385,11 @@ const ReflectPage111: React.FC<PageProps> = ({
             Impact
           </AnalysisButton>
           <AnalysisButton 
-            active={analysisType === 'result'} 
-            onClick={() => handleAnalyze('result')}
+            active={analysisType === 'outcome'} 
+            onClick={() => handleAnalyze('outcome')}
             disabled={isButtonDisabled}
           >
-            Result
+            Outcome
           </AnalysisButton>
         </ButtonsContainer>
       </ContentArea>

@@ -101,7 +101,7 @@ const AnalysisDescription = styled.p`
   line-height: 1.5;
 `;
 
-type AnalysisType = 'style' | 'impact' | 'result';
+type AnalysisType = 'style' | 'impact' | 'outcome';
 
 interface ReflectionOutputProps {
   analysisType: AnalysisType;
@@ -156,29 +156,37 @@ const ReflectionOutput: React.FC<ReflectionOutputProps> = ({ analysisType, analy
   }
 
   // Extract metrics, detailed analysis, summary and suggestions if they exist
-  const metrics = analysis.metrics || analysis;
+  // Add debug logging to troubleshoot
+  console.log('Raw analysis object:', analysis);
+  
+  const metrics = analysis.metrics || {};
   const detailedAnalysis = analysis.analysis || {};
   const summary = analysis.summary || '';
   const suggestions = analysis.suggestions || [];
+  
+  console.log('Extracted metrics:', metrics);
 
   // Get the appropriate metric names based on analysis type
   const getMetricNames = () => {
     switch (analysisType) {
       case 'style':
-        return Object.keys(metrics).filter(key => 
-          ['clarity', 'conciseness', 'formality', 'engagement', 'complexity'].includes(key));
+        return ['clearness', 'emotion', 'focus', 'respect', 'warmth'];
       case 'impact':
-        return Object.keys(metrics).filter(key => 
-          ['empathy', 'authority', 'persuasiveness', 'approachability', 'confidence'].includes(key));
-      case 'result':
-        return Object.keys(metrics).filter(key => 
-          ['effectiveness', 'actionability', 'memorability', 'influence', 'audience_fit'].includes(key));
+        return ['empathy', 'inspiration', 'authority', 'persuasiveness', 'sincerity'];
+      case 'outcome':
+        return ['effectiveness', 'actionability', 'memorability', 'solution', 'influence'];
       default:
         return Object.keys(metrics);
     }
   };
 
   const metricNames = getMetricNames();
+  console.log('Expected metric names:', metricNames);
+  
+  // Debug: check if metrics exist for the expected names
+  metricNames.forEach(name => {
+    console.log(`Metric ${name} value:`, metrics[name]);
+  });
 
   return (
     <OutputContainer>
@@ -186,23 +194,31 @@ const ReflectionOutput: React.FC<ReflectionOutputProps> = ({ analysisType, analy
       
       {/* Metrics visualization */}
       <MetricsGrid>
-        {metricNames.map((metricName) => (
-          <MetricItem key={metricName}>
-            <div style={{ width: 60, height: 60 }}>
-              <CircularProgressbar
-                value={metrics[metricName] || 0}
-                text={`${metrics[metricName] || 0}`}
-                styles={buildStyles({
-                  textSize: '30px',
-                  pathColor: '#5664d2',
-                  textColor: '#5664d2',
-                  trailColor: '#e6e6e6',
-                })}
-              />
-            </div>
-            <MetricName>{metricName.replace('_', ' ')}</MetricName>
-          </MetricItem>
-        ))}
+        {metricNames.map((metricName) => {
+          // Get metric value safely
+          const metricValue = metrics && typeof metrics[metricName] === 'number' ? 
+            metrics[metricName] : 0;
+          
+          console.log(`Rendering metric ${metricName} with value ${metricValue}`);
+          
+          return (
+            <MetricItem key={metricName}>
+              <div style={{ width: 60, height: 60 }}>
+                <CircularProgressbar
+                  value={metricValue}
+                  text={`${Math.round(metricValue)}`}
+                  styles={buildStyles({
+                    textSize: '30px',
+                    pathColor: '#5664d2',
+                    textColor: '#5664d2',
+                    trailColor: '#e6e6e6',
+                  })}
+                />
+              </div>
+              <MetricName>{metricName.replace('_', ' ')}</MetricName>
+            </MetricItem>
+          );
+        })}
       </MetricsGrid>
 
       {/* Summary section */}

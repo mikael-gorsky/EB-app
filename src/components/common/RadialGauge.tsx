@@ -75,7 +75,7 @@ const getColorForValue = (value: number): string => {
  * A modern semi-circular gauge with digital display value
  */
 const RadialGauge: React.FC<RadialGaugeProps> = ({
-  value,
+  value = 0,
   min = 0,
   max = 100,
   label = '',
@@ -88,12 +88,16 @@ const RadialGauge: React.FC<RadialGaugeProps> = ({
   animate = true,
   animationDuration = 1000
 }) => {
+  // Make sure value is a valid number, if not default to min
+  const safeValue = typeof value === 'number' && !isNaN(value) ? 
+    Math.max(min, Math.min(max, value)) : min;
+  
   const [currentValue, setCurrentValue] = useState(min);
   
   // Animation effect
   useEffect(() => {
     if (!animate) {
-      setCurrentValue(value);
+      setCurrentValue(safeValue);
       return;
     }
     
@@ -103,7 +107,7 @@ const RadialGauge: React.FC<RadialGaugeProps> = ({
     // Animate to the target value
     const startTime = Date.now();
     const startValue = min;
-    const valueRange = value - min;
+    const valueRange = safeValue - min;
     
     const animateValue = () => {
       const elapsedTime = Date.now() - startTime;
@@ -121,7 +125,7 @@ const RadialGauge: React.FC<RadialGaugeProps> = ({
     };
     
     requestAnimationFrame(animateValue);
-  }, [value, min, animate, animationDuration]);
+  }, [safeValue, min, animate, animationDuration]);
   
   // Calculate the range and angle
   const range = max - min;
@@ -151,14 +155,14 @@ const RadialGauge: React.FC<RadialGaugeProps> = ({
   
   // Create gradient stops based on value
   const getGradientStops = () => {
-    if (value < 33) {
+    if (safeValue < 33) {
       return (
         <>
           <stop offset="0%" stopColor="#f44336" />
           <stop offset="100%" stopColor="#ff9800" />
         </>
       );
-    } else if (value < 66) {
+    } else if (safeValue < 66) {
       return (
         <>
           <stop offset="0%" stopColor="#ff9800" />
@@ -187,7 +191,7 @@ const RadialGauge: React.FC<RadialGaugeProps> = ({
         <svg width="100%" height="100%" viewBox={`0 0 ${size} ${size}`} overflow="visible">
           {/* Define gradient */}
           <defs>
-            <linearGradient id={`gauge-gradient-${value}`} x1="0%" y1="0%" x2="100%" y2="0%">
+            <linearGradient id={`gauge-gradient-${safeValue}`} x1="0%" y1="0%" x2="100%" y2="0%">
               {getGradientStops()}
             </linearGradient>
           </defs>
@@ -205,7 +209,7 @@ const RadialGauge: React.FC<RadialGaugeProps> = ({
           <path
             d={`M ${startX} ${startY} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${endX} ${endY}`}
             fill="none"
-            stroke={`url(#gauge-gradient-${value})`}
+            stroke={`url(#gauge-gradient-${safeValue})`}
             strokeWidth={thickness}
             strokeLinecap="round"
           />

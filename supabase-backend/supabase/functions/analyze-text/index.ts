@@ -50,9 +50,10 @@ serve(async (req) => {
       throw new Error('Message is required');
     }
     
-    if (!type || !['style', 'impact', 'result'].includes(type)) {
+    // UPDATED: Changed 'result' to 'outcome' in the valid types list
+    if (!type || !['style', 'impact', 'outcome'].includes(type)) {
       debugInfo.errors.push(`Invalid analysis type: ${type}`);
-      throw new Error('Type must be one of: style, impact, result');
+      throw new Error('Type must be one of: style, impact, outcome');
     }
     
     debugInfo.steps.push('Input validation passed');
@@ -79,27 +80,28 @@ serve(async (req) => {
     
     // If no override is provided, use the default prompts
     if (!prompt) {
+      // UPDATED: New prompt templates for the new metrics
       if (type === 'style') {
-        prompt = `Analyze the style of this text: "${message}" 
+        prompt = `Analyze the style (clarity and tone) of this text: "${message}" 
                   Return a JSON object with:
-                  1. "metrics" object with numerical scores for: clarity, conciseness, formality, engagement, and complexity on a scale of 0-100.
+                  1. "metrics" object with numerical scores for: clearness, emotion, focus, respect, and warmth on a scale of 0-100.
                   2. "analysis" object with detailed text explanations for each metric.
                   3. "summary" string with an overall analysis of the text style.
                   4. "suggestions" array with 2-3 specific, actionable suggestions to improve the style -- YOU MUST GIVE SUGGESTIONS IN THE SAME LANGUAGE THAT THE TEXT YOU ANALYZE.`;
       } else if (type === 'impact') {
-        prompt = `Analyze the emotional impact of this text: "${message}" 
+        prompt = `Analyze the impact (connection and influence) of this text: "${message}" 
                   Return a JSON object with:
-                  1. "metrics" object with numerical scores for: empathy, authority, persuasiveness, approachability, and confidence on a scale of 0-100.
+                  1. "metrics" object with numerical scores for: empathy, inspiration, authority, persuasiveness, and sincerity on a scale of 0-100.
                   2. "analysis" object with detailed text explanations for each metric.
                   3. "summary" string with an overall analysis of the emotional impact.
-                  4. "suggestions" array with 2-3 specific, actionable suggestions to improve the emotional impact -- YOU MUST GIVE SUGGESTIONS IN THE SAME LANGUAGE THAT THE TEXT YOU ANALYZE.`;
-      } else if (type === 'result') {
-        prompt = `Analyze the potential results of this message: "${message}" 
+                  4. "suggestions" array with 2-3 specific, actionable suggestions to improve the impact -- YOU MUST GIVE SUGGESTIONS IN THE SAME LANGUAGE THAT THE TEXT YOU ANALYZE.`;
+      } else if (type === 'outcome') {
+        prompt = `Analyze the potential outcome (outcome and action) of this message: "${message}" 
                   Return a JSON object with:
-                  1. "metrics" object with numerical scores for: effectiveness, actionability, memorability, influence, and audience_fit on a scale of 0-100.
+                  1. "metrics" object with numerical scores for: effectiveness, actionability, memorability, solution, and influence on a scale of 0-100.
                   2. "analysis" object with detailed text explanations for each metric.
-                  3. "summary" string with an overall prediction of the message's results.
-                  4. "suggestions" array with 2-3 specific, actionable suggestions to improve the results -- YOU MUST GIVE SUGGESTIONS IN THE SAME LANGUAGE THAT THE TEXT YOU ANALYZE.`;
+                  3. "summary" string with an overall prediction of the message's outcomes.
+                  4. "suggestions" array with 2-3 specific, actionable suggestions to improve the outcomes -- YOU MUST GIVE SUGGESTIONS IN THE SAME LANGUAGE THAT THE TEXT YOU ANALYZE.`;
       }
     }
     
@@ -139,10 +141,37 @@ serve(async (req) => {
       throw new Error(`Invalid response format from analysis service: ${e.message}`);
     }
     
-    // Validate the response structure
+    // Validate and normalize the response structure
     if (!analysisResult.metrics) {
       analysisResult.metrics = {}; // Ensure metrics exists
       debugInfo.steps.push('Added missing metrics object to response');
+    }
+    
+    // ADDED: Ensure all expected metrics exist with numerical values
+    const expectedMetrics = {
+      style: ['clearness', 'emotion', 'focus', 'respect', 'warmth'],
+      impact: ['empathy', 'inspiration', 'authority', 'persuasiveness', 'sincerity'],
+      outcome: ['effectiveness', 'actionability', 'memorability', 'solution', 'influence']
+    };
+
+    // Add missing metrics with default values
+    if (type in expectedMetrics) {
+      expectedMetrics[type as keyof typeof expectedMetrics].forEach(metric => {
+        // Convert any string numbers to actual numbers
+        if (typeof analysisResult.metrics[metric] === 'string') {
+          try {
+            analysisResult.metrics[metric] = parseFloat(analysisResult.metrics[metric]);
+          } catch (e) {
+            analysisResult.metrics[metric] = 0;
+          }
+        }
+        
+        // Add missing metrics with default value
+        if (analysisResult.metrics[metric] === undefined) {
+          analysisResult.metrics[metric] = 0;
+          debugInfo.steps.push(`Added missing metric: ${metric}`);
+        }
+      });
     }
     
     debugInfo.steps.push('Analysis completed successfully');
