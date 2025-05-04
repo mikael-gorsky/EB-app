@@ -1,18 +1,18 @@
 {
   "files": {
     "main.css": "/EB-app/static/css/main.62681827.css",
-    "main.js": "/EB-app/static/js/main.32ef29e5.js",
+    "main.js": "/EB-app/static/js/main.1507b279.js",
     "static/js/952.b7d8b693.chunk.js": "/EB-app/static/js/952.b7d8b693.chunk.js",
     "static/js/453.93613493.chunk.js": "/EB-app/static/js/453.93613493.chunk.js",
     "static/media/hit-logo.png": "/EB-app/static/media/hit-logo.0dfb44089610173b999f.png",
     "index.html": "/EB-app/index.html",
     "main.62681827.css.map": "/EB-app/static/css/main.62681827.css.map",
-    "main.32ef29e5.js.map": "/EB-app/static/js/main.32ef29e5.js.map",
+    "main.1507b279.js.map": "/EB-app/static/js/main.1507b279.js.map",
     "952.b7d8b693.chunk.js.map": "/EB-app/static/js/952.b7d8b693.chunk.js.map",
     "453.93613493.chunk.js.map": "/EB-app/static/js/453.93613493.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.62681827.css",
-    "static/js/main.32ef29e5.js"
+    "static/js/main.1507b279.js"
   ]
 }
